@@ -58,16 +58,22 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     private func updateIcon(for s: StatusSnapshot?) {
-        let symbol: String
+        // "arrow.triangle.branch" reads as a railway switch (an "aiguillage") — it fits a tool
+        // that routes traffic down one of two tracks. State is carried by colour so it reads at a
+        // glance; the system colours below adapt to a light or dark menu bar.
+        let color: NSColor
         switch overall(s) {
-        case .stopped: symbol = "power"
-        case .healthy: symbol = "antenna.radiowaves.left.and.right"
-        case .degraded: symbol = "antenna.radiowaves.left.and.right.slash"
-        case .down: symbol = "exclamationmark.triangle"
+        case .stopped:  color = .secondaryLabelColor
+        case .healthy:  color = .systemGreen
+        case .degraded: color = .systemOrange
+        case .down:     color = .systemRed
         }
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Aiguillage")
-            ?? NSImage(systemSymbolName: "bolt.horizontal.circle", accessibilityDescription: "Aiguillage")
-        image?.isTemplate = true // adapts to a light or dark menu bar
+        let base = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Aiguillage")
+            ?? NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Aiguillage")
+        let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        let image = base?.withSymbolConfiguration(cfg)
+        image?.isTemplate = false // keep the state colour (a template image renders monochrome)
         statusItem.button?.image = image
     }
 

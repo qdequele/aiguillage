@@ -109,7 +109,12 @@ enum DaemonClient {
             return "binaire introuvable : \(bin)"
         }
         let argv = ([bin, "up"] + upArguments()).map(shellQuote).joined(separator: " ")
-        let shellCommand = "nohup \(argv) >> \(shellQuote(logPath)) 2>&1 &"
+        // Detach via a subshell with all stdio redirected: `( cmd >log 2>&1 </dev/null & )`.
+        // The subshell exits immediately so osascript's `do shell script` sees EOF and returns,
+        // and the backgrounded daemon is reparented to launchd and survives. `nohup` is NOT used:
+        // under `with administrator privileges` there is no controlling terminal, so nohup fails
+        // with "can't detach from console: No such process" and the daemon never starts.
+        let shellCommand = "( \(argv) >> \(shellQuote(logPath)) 2>&1 </dev/null & )"
         let appleScript = "do shell script \"\(appleEscape(shellCommand))\" with administrator privileges"
 
         let p = Process()
