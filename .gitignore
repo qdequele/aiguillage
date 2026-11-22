@@ -1,0 +1,18 @@
+# SwiftPM build output
+/.build/
+.build/
+*.o
+*.swiftmodule
+
+# Xcode / SwiftPM user data (not used here, but just in case)
+/.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Runtime / local state produced by the daemon
+/var/run/aiguillage*.json
+*.log
