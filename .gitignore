@@ -16,3 +16,6 @@ DerivedData/
 # Runtime / local state produced by the daemon
 /var/run/aiguillage*.json
 *.log
+
+# Packaged app / dmg
+/dist/
