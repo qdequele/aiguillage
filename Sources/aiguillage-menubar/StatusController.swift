@@ -88,9 +88,9 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let header = NSMenuItem()
         if let s {
-            header.title = "Aiguillage : actif (pid \(s.pid), \(s.utun))"
+            header.title = "Aiguillage: running (pid \(s.pid), \(s.utun))"
         } else {
-            header.title = "Aiguillage : arrêté"
+            header.title = "Aiguillage: stopped"
         }
         header.isEnabled = false
         menu.addItem(header)
@@ -98,7 +98,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         if let s {
             menu.addItem(.separator())
             if s.links.isEmpty {
-                let none = NSMenuItem(title: "aucun lien", action: nil, keyEquivalent: "")
+                let none = NSMenuItem(title: "no links", action: nil, keyEquivalent: "")
                 none.isEnabled = false
                 menu.addItem(none)
             }
@@ -111,7 +111,7 @@ final class StatusController: NSObject, NSMenuDelegate {
                 }
                 let rtt = link.rttMs.map { "\($0)ms" } ?? "-"
                 var text = "\(link.displayName) — \(link.state) · \(rtt) · \u{2191}\(formatBytes(link.bytesUp)) \u{2193}\(formatBytes(link.bytesDown)) · tcp \(link.activeTCP) udp \(link.activeUDP)"
-                if link.role == "primary" { text += " · primaire" }
+                if link.role == "primary" { text += " · primary" }
                 let attr = NSMutableAttributedString(attributedString: dot(color))
                 attr.append(NSAttributedString(string: text))
                 let item = NSMenuItem()
@@ -135,23 +135,23 @@ final class StatusController: NSObject, NSMenuDelegate {
             modeItem.submenu = sub
             menu.addItem(modeItem)
 
-            let flows = NSMenuItem(title: "Flux actifs : TCP \(s.tcpFlows) · UDP \(s.udpFlows) · NAT \(s.natEntries) · DNS \(s.dnsQueries)",
+            let flows = NSMenuItem(title: "Active flows: TCP \(s.tcpFlows) · UDP \(s.udpFlows) · NAT \(s.natEntries) · DNS \(s.dnsQueries)",
                                    action: nil, keyEquivalent: "")
             flows.isEnabled = false
             menu.addItem(flows)
 
             // Routing rules with the number of active flows each pinned.
-            let rulesHeader = NSMenuItem(title: "Règles :", action: nil, keyEquivalent: "")
+            let rulesHeader = NSMenuItem(title: "Rules:", action: nil, keyEquivalent: "")
             rulesHeader.isEnabled = false
             menu.addItem(rulesHeader)
             if s.rules.isEmpty {
-                let none = NSMenuItem(title: "   aucune", action: nil, keyEquivalent: "")
+                let none = NSMenuItem(title: "   none", action: nil, keyEquivalent: "")
                 none.isEnabled = false
                 menu.addItem(none)
             }
             for r in s.rules {
                 let count = s.flows.filter { $0.rule?.hasPrefix(r.pattern) == true }.count
-                let item = NSMenuItem(title: "   \(r.pattern) = \(r.policy) [\(r.source)] — \(count) flux",
+                let item = NSMenuItem(title: "   \(r.pattern) = \(r.policy) [\(r.source)] — \(count) flows",
                                       action: nil, keyEquivalent: "")
                 item.isEnabled = false
                 menu.addItem(item)
@@ -160,19 +160,19 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let startItem = NSMenuItem(title: "Démarrer le démon…", action: #selector(startDaemon), keyEquivalent: "")
+        let startItem = NSMenuItem(title: "Start the daemon…", action: #selector(startDaemon), keyEquivalent: "")
         startItem.target = self
         startItem.isEnabled = (s == nil)
         menu.addItem(startItem)
 
-        let stopItem = NSMenuItem(title: "Arrêter le démon", action: #selector(stopDaemon), keyEquivalent: "")
+        let stopItem = NSMenuItem(title: "Stop the daemon", action: #selector(stopDaemon), keyEquivalent: "")
         stopItem.target = self
         stopItem.isEnabled = (s != nil)
         menu.addItem(stopItem)
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quitter (laisse le démon tourner)", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit (leaves the daemon running)", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
     }
@@ -183,8 +183,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let error = DaemonClient.startWithAdminPrompt()
             DispatchQueue.main.async {
-                if let error, error != "annulé" {
-                    self?.alert("Démarrage impossible", error)
+                if let error, error != "cancelled" {
+                    self?.alert("Could not start", error)
                 }
                 self?.refresh()
             }

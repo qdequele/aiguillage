@@ -106,7 +106,7 @@ enum DaemonClient {
     static func startWithAdminPrompt() -> String? {
         let bin = resolveDaemonBinary()
         guard FileManager.default.isExecutableFile(atPath: bin) else {
-            return "binaire introuvable : \(bin)"
+            return "binary not found: \(bin)"
         }
         let argv = ([bin, "up"] + upArguments()).map(shellQuote).joined(separator: " ")
         // Detach via a subshell with all stdio redirected: `( cmd >log 2>&1 </dev/null & )`.
@@ -133,8 +133,8 @@ enum DaemonClient {
             let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             // -128 is the AppleScript "user cancelled" code.
-            if out.contains("-128") || out.localizedCaseInsensitiveContains("cancel") { return "annulé" }
-            return out.isEmpty ? "échec (code \(p.terminationStatus))" : out
+            if out.contains("-128") || out.localizedCaseInsensitiveContains("cancel") { return "cancelled" }
+            return out.isEmpty ? "failed (code \(p.terminationStatus))" : out
         }
         return nil
     }

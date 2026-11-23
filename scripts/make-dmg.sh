@@ -86,18 +86,18 @@ STAGE="$DIST/dmg"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-cat > "$STAGE/LISEZ-MOI.txt" <<'TXT'
-Installation d'Aiguillage
-=========================
-1. Glisse Aiguillage.app dans le dossier Applications (à côté).
-2. Premier lancement : clic droit sur l'app > Ouvrir (app non signée par Apple),
-   puis « Ouvrir » dans la boîte de dialogue. Une seule fois.
-3. L'icône (un aiguillage) apparaît dans la barre de menus, en haut à droite.
-4. « Démarrer le démon… » demande le mot de passe administrateur (le routage
-   réseau exige root). Le démon tourne ensuite en tâche de fond.
+cat > "$STAGE/README.txt" <<'TXT'
+Installing Aiguillage
+=====================
+1. Drag Aiguillage.app into the Applications folder (next to this file).
+2. First launch: right-click the app > Open (app not signed by Apple), then
+   "Open" in the dialog. Once only.
+3. The icon (a railway switch) appears in the menu bar, top right.
+4. "Start the daemon…" asks for the admin password (network routing requires
+   root). The daemon then runs in the background.
 
-Astuce : pour éviter le mot de passe à chaque démarrage, on peut installer le
-démon en service launchd — demande-le.
+Tip: to avoid the password at every startup, you can install the daemon as a
+launchd service — see the README.
 TXT
 
 rm -f "$DMG"
