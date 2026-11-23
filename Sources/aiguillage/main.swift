@@ -7,7 +7,8 @@ let usage = """
 usage:
   aiguillage up [--primary IF] [--secondary IF] [--mode race|failover]
                 [--dns-mode networksetup|dynamicstore|none] [--rule 'PATTERN=POLICY']...
-                [--no-default-rules] [--selftest] [--verbose]   (root; --dns-mode default networksetup)
+                [--no-default-rules] [--selftest] [--verbose]   (root)
+                --dns-mode defaults to auto: none when Tailscale is running (native DNS), else networksetup
   aiguillage status [--json]
   aiguillage doctor
   aiguillage restore                                      (root) undo networksetup DNS changes

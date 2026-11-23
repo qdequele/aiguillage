@@ -6,10 +6,13 @@ struct UpOptions {
     var primary: String?
     var secondary: String?
     var mode: RelayMode = .race
-    // networksetup is the default: it installs 198.18.0.2 as a *primary* resolver on the active
-    // services, which outranks Tailscale's match-all supplemental. dynamicstore (a supplemental
-    // resolver) cannot win that ordering — see README.
-    var dnsMode: DNSMode = .networksetup
+    // nil means "auto": the daemon picks per environment (see `resolveDNSMode`). When Tailscale is
+    // running it owns DNS (a match-all supplemental resolver on utun6 that macOS consults and that
+    // forwards upstream itself), so hijacking the system resolver makes fresh lookups fail — we
+    // leave DNS alone (.none). Without Tailscale, .networksetup installs 198.18.0.2 as a primary
+    // resolver, which beats nothing and lets the per-domain rules learn A records. An explicit
+    // --dns-mode always wins.
+    var dnsMode: DNSMode?
     var verbose = false
     var cliRules: [String] = []
     var noDefaultRules = false
@@ -207,15 +210,29 @@ final class Daemon {
     private var engine: Engine?
     private var registry = InterfaceRegistry()
     private var systemDNS: SystemDNS
+    /// The DNS mode actually in effect (the explicit --dns-mode, or the environment-aware default).
+    let effectiveDNSMode: DNSMode
+    private let dnsModeAuto: Bool
     private let scopedRoutes = ScopedRouteManager()
     private var signalSources: [DispatchSourceSignal] = []
     private var timers: [DispatchSourceTimer] = []
     private let startedAt = monotonicNow()
     private var tornDown = false
 
+    /// Without an explicit --dns-mode: leave DNS alone when Tailscale is up (it owns resolution and
+    /// hijacking it breaks fresh lookups), otherwise install our primary resolver so rules can learn.
+    static func resolveDNSMode(_ requested: DNSMode?) -> (mode: DNSMode, auto: Bool) {
+        if let requested { return (requested, false) }
+        let tailscale = Tunnels.list().contains { $0.isTailscale }
+        return (tailscale ? .none : .networksetup, true)
+    }
+
     init(options: UpOptions) {
         self.options = options
-        systemDNS = SystemDNS(mode: options.dnsMode)
+        let resolved = Daemon.resolveDNSMode(options.dnsMode)
+        effectiveDNSMode = resolved.mode
+        dnsModeAuto = resolved.auto
+        systemDNS = SystemDNS(mode: resolved.mode)
     }
 
     func run() -> Never {
@@ -243,7 +260,10 @@ final class Daemon {
     private func start() throws {
         Log.verbose = options.verbose
         let (ruleSet, files) = try loadRules(cli: options.cliRules, noDefaults: options.noDefaultRules)
-        Log.info("aiguillage starting: mode \(options.mode.rawValue), dns-mode \(options.dnsMode.rawValue)")
+        Log.info("aiguillage starting: mode \(options.mode.rawValue), dns-mode \(effectiveDNSMode.rawValue)\(dnsModeAuto ? " (auto)" : "")")
+        if dnsModeAuto && effectiveDNSMode == .none {
+            Log.info("dns: Tailscale present — leaving system DNS alone (native resolution). Per-domain rules are inactive; force with --dns-mode networksetup.")
+        }
         Log.info("rules (\(ruleSet.rules.count))\(files.isEmpty ? "" : " from defaults + \(files.joined(separator: ", "))"): " +
                  ruleSet.rules.map { "\($0.description) [\($0.source.rawValue)]" }.joined(separator: "; "))
 
@@ -297,16 +317,16 @@ final class Daemon {
         }
 
         try systemDNS.apply(linkNames: names)
-        if options.dnsMode != .none {
+        if effectiveDNSMode != .none {
             // configd needs a moment to publish the new resolver configuration.
-            let dnsMode = options.dnsMode
+            let dnsMode = effectiveDNSMode
             queue.asyncAfter(deadline: .now() + 1.5) {
                 let (ok, lines) = SystemDNS.verify(mode: dnsMode)
                 for l in lines { ok ? Log.info("dns check: \(l)") : Log.warn("dns check: \(l)") }
             }
         }
 
-        let dnsMode = options.dnsMode
+        let dnsMode = effectiveDNSMode
         let startedAt = self.startedAt
         func controlReply(_ response: ControlResponse) -> Data {
             (try? JSONEncoder().encode(response)) ?? Data()

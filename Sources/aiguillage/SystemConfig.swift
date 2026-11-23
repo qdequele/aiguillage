@@ -220,7 +220,7 @@ final class SystemDNS {
         let ourResolvers = resolvers.filter { $0.nameservers.contains(serverAddress) }
         guard !ourResolvers.isEmpty else {
             lines.append("198.18.0.2 is NOT in scutil --dns: the system resolver will not use Aiguillage.")
-            if mode == .dynamicstore { lines.append("retry with: sudo aiguillage up --dns-mode networksetup (now the default)") }
+            if mode == .dynamicstore { lines.append("retry with: sudo aiguillage up --dns-mode networksetup") }
             return (false, lines)
         }
 
