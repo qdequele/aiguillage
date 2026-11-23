@@ -117,6 +117,22 @@ If no daemon is running, the menu shows "Aiguillage: stopped".
   pick up the new mode.
 - **Quit**: closes **only** the menu-bar app; the daemon keeps running.
 
+## Updates
+
+The menu-bar app checks GitHub Releases for a newer version (quietly on launch, then at most every
+6 hours, and when you open the menu). When one is available, the menu shows a bold **⬆ Update to
+vX.Y.Z…** item; **Check for Updates…** forces a check any time.
+
+Clicking **Update** downloads the release DMG, installs it over the running `Aiguillage.app`, strips
+the `com.apple.quarantine` xattr (so there's **no** Gatekeeper right-click→Open prompt on the new
+build), and relaunches. If the daemon is installed as a launchd service, its binary in
+`/usr/local/bin` is refreshed and kickstarted too — that step asks for your admin password once;
+a menu-bar-launched daemon just picks up the new binary the next time it starts.
+
+No Sparkle and no signing keys: this matches the ad-hoc, no-Developer-account distribution. The
+updater only self-installs when running from an installed `.app`; a bare `.build/release` binary
+just opens the releases page.
+
 ## Forcing a domain onto a link
 
 > Requires `--dns-mode networksetup` (so: without Tailscale, or by forcing it). In `none` mode

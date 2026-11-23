@@ -12,6 +12,12 @@ final class StatusController: NSObject, NSMenuDelegate {
     private let openInterval: TimeInterval = 2
     private let closedInterval: TimeInterval = 5
 
+    // Update state.
+    private var latestRelease: Updater.Release?
+    private var lastUpdateCheck: Date?
+    private var isUpdating = false
+    private let updateCheckInterval: TimeInterval = 6 * 3600
+
     func start() {
         menu.delegate = self
         menu.autoenablesItems = false
@@ -20,6 +26,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         render(latest)
         refresh()
         scheduleTimer(interval: closedInterval)
+        checkForUpdates(manual: false) // quiet check on launch
     }
 
     // MARK: Polling
@@ -172,6 +179,35 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        // Updates.
+        if isUpdating {
+            let item = NSMenuItem(title: "Updating…", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        } else if let rel = latestRelease,
+                  let cur = Updater.currentVersion(),
+                  Updater.isNewer(rel.version, than: cur) {
+            let update = NSMenuItem(title: "⬆ Update to \(rel.version)…", action: #selector(startUpdate), keyEquivalent: "")
+            update.target = self
+            // Bold so it stands out as the actionable item.
+            update.attributedTitle = NSAttributedString(
+                string: update.title,
+                attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)])
+            menu.addItem(update)
+        }
+        let check = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdatesClicked), keyEquivalent: "")
+        check.target = self
+        check.isEnabled = !isUpdating
+        menu.addItem(check)
+
+        if let v = Updater.currentVersion() {
+            let ver = NSMenuItem(title: "Aiguillage \(v)", action: nil, keyEquivalent: "")
+            ver.isEnabled = false
+            menu.addItem(ver)
+        }
+
+        menu.addItem(.separator())
+
         let quit = NSMenuItem(title: "Quit (leaves the daemon running)", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
@@ -210,6 +246,82 @@ final class StatusController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
+    // MARK: Updates
+
+    /// Background check (throttled) or an explicit one from the menu. On a manual check it reports
+    /// the outcome; on a quiet check it just refreshes the menu if an update appeared.
+    private func checkForUpdates(manual: Bool) {
+        if !manual, let last = lastUpdateCheck, Date().timeIntervalSince(last) < updateCheckInterval {
+            return
+        }
+        lastUpdateCheck = Date()
+        Updater.checkLatest { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let rel):
+                self.latestRelease = rel
+                self.render(self.latest)
+                if manual {
+                    if let cur = Updater.currentVersion(), Updater.isNewer(rel.version, than: cur) {
+                        self.offerUpdate(rel)
+                    } else {
+                        self.alert("You're up to date", "Aiguillage \(Updater.currentVersion() ?? "") is the latest version.")
+                    }
+                }
+            case .failure(let err):
+                if manual {
+                    self.alert("Couldn't check for updates", err.localizedDescription)
+                }
+            }
+        }
+    }
+
+    @objc private func checkForUpdatesClicked() {
+        checkForUpdates(manual: true)
+    }
+
+    @objc private func startUpdate() {
+        guard let rel = latestRelease else { return }
+        offerUpdate(rel)
+    }
+
+    /// Confirmation dialog, then runs the swap-in-place update (or opens the page if we can't
+    /// self-install, e.g. a bare `.build` binary).
+    private func offerUpdate(_ rel: Release) {
+        guard Updater.canSelfInstall() else {
+            if let url = URL(string: rel.pageURL) { NSWorkspace.shared.open(url) }
+            return
+        }
+        let a = NSAlert()
+        a.messageText = "Update to \(rel.version)?"
+        var info = "You have \(Updater.currentVersion() ?? "an older version"). This downloads and installs \(rel.version), then relaunches Aiguillage."
+        if FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/com.qdequelen.aiguillage.plist") {
+            info += "\n\nThe background service will be refreshed too — you'll be asked for your admin password once."
+        }
+        if !rel.notes.isEmpty {
+            info += "\n\n— Release notes —\n" + String(rel.notes.prefix(600))
+        }
+        a.informativeText = info
+        a.addButton(withTitle: "Update")
+        a.addButton(withTitle: "Later")
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+
+        isUpdating = true
+        render(latest)
+        Updater.performUpdate(rel) { [weak self] error in
+            guard let self else { return }
+            // On success the app is terminating to relaunch; nothing more to do here.
+            guard let error else { return }
+            self.isUpdating = false
+            self.render(self.latest)
+            if error != "cancelled" {
+                self.alert("Update failed", error)
+            }
+        }
+    }
+
+    private typealias Release = Updater.Release
+
     private func alert(_ title: String, _ message: String) {
         let a = NSAlert()
         a.messageText = title
@@ -223,6 +335,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         render(latest) // show the freshest cached data immediately
         refresh()
+        checkForUpdates(manual: false) // throttled; refreshes the menu if a new version appears
         scheduleTimer(interval: openInterval)
     }
 
